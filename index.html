@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCI GenAI Agent + Functions Healthcheck Demo</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-color: #ff3333; /* OCI Red style */
+            --primary-color: #f3f3f3;
+            --highlight: #4db6ac;
+            --code-bg: #282c34;
+            --success: #66bb6a;
+            --warning: #ffa726;
+            --border-color: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Slide Layout */
+        section {
+            min-height: 100vh;
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Typography */
+        h1, h2, h3, h4 { color: #ffffff; margin-bottom: 1rem; }
+        h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.2; }
+        h2 { 
+            font-size: 2.2rem; 
+            border-left: 6px solid var(--accent-color); 
+            padding-left: 20px; 
+            margin-bottom: 40px; 
+            display: flex;
+            align-items: center;
+        }
+        h3 { font-size: 1.5rem; color: var(--highlight); margin-top: 10px; }
+        p, li { font-size: 1.1rem; color: var(--text-muted); }
+        
+        strong { color: white; font-weight: 600; }
+
+        .slide-number {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-family: monospace;
+            font-size: 1rem;
+            opacity: 0.5;
+            border: 1px solid #555;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        /* Components */
+        .card {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            height: 100%;
+            border: 1px solid #333;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+        /* Badge & Highlights */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            font-family: monospace;
+            margin: 0 2px;
+        }
+        .bg-run { background: rgba(76, 175, 80, 0.15); color: var(--success); border: 1px solid var(--success); }
+        .bg-high { background: rgba(33, 150, 243, 0.15); color: #2196f3; border: 1px solid #2196f3; }
+        .bg-method { background: #5c6bc0; color: white; border: none; }
+
+        /* Code Blocks */
+        .code-wrapper {
+            position: relative;
+            margin-top: 15px;
+        }
+        pre {
+            background-color: var(--code-bg);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.95rem;
+            border: 1px solid #444;
+            color: #dcdcdc;
+            white-space: pre-wrap;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #555;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.95rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #444;
+        }
+        th { color: var(--highlight); border-bottom: 2px solid #555; }
+        td { color: #ccc; }
+        tr:hover td { background-color: #2a2a2a; }
+
+        /* =========================================
+           ANIMATED WORKFLOW & DIAGRAM STYLES
+           ========================================= */
+        .flow-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            padding: 40px 0;
+            margin: 40px 0;
+        }
+
+        .flow-step {
+            width: 18%;
+            background: #252525;
+            border: 2px solid #555;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+
+        .flow-step.active {
+            border-color: var(--highlight);
+            box-shadow: 0 0 15px rgba(77, 182, 172, 0.3);
+            background: #2f2f2f;
+        }
+
+        .flow-step h4 { margin-bottom: 5px; font-size: 1.1rem; color: white; }
+        .flow-step p { font-size: 0.85rem; margin: 0; }
+        .flow-step .icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+
+        /* Connecting Lines */
+        .connector {
+            flex-grow: 1;
+            height: 4px;
+            background: #333;
+            position: relative;
+            margin: 0 10px;
+        }
+
+        /* The Moving Dot (Packet) */
+        .packet {
+            width: 12px;
+            height: 12px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            position: absolute;
+            top: -4px;
+            left: 0;
+            opacity: 0;
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+
+        /* Animation Keyframes */
+        @keyframes movePacket {
+            0% { left: 0%; opacity: 1; }
+            100% { left: 100%; opacity: 1; }
+        }
+
+        /* Animation Orchestration */
+        /* Packet 1: User -> Agent */
+        .c1 .packet { animation: movePacket 1.5s linear infinite; }
+        /* Packet 2: Agent -> Function (Planning) */
+        .c2 .packet { animation: movePacket 1.5s linear 1.5s infinite; }
+        /* Packet 3: Function -> Resources */
+        .c3 .packet { animation: movePacket 1.5s linear 3s infinite; }
+        /* Packet 4: Resources -> Response */
+        .c4 .packet { animation: movePacket 1.5s linear 4.5s infinite; }
+
+        /* Region Box Styling */
+        .region-zone {
+            border: 2px dashed #444;
+            padding: 20px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
+            position: relative;
+            margin-top: 10px;
+        }
+        .region-tag {
+            position: absolute;
+            top: -12px;
+            left: 15px;
+            background: var(--bg-color);
+            padding: 0 8px;
+            color: #777;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+
+    <section id="title" style="text-align: center;">
+        <div class="container">
+            <div style="letter-spacing: 3px; color: var(--accent-color); margin-bottom: 20px; font-weight: bold;">
+                TECHNICAL DEMO
+            </div>
+            <h1>OCI GenAI Agent + Functions 기반<br>인스턴스 Healthcheck 자동화</h1>
+            <p style="font-size: 1.6rem; color: #bbb; margin-top: 25px; max-width: 800px; margin-left: auto; margin-right: auto;">
+                자연어 명령(Natural Language)으로 인프라 상태를 실시간 진단하고,<br>
+                정형 데이터(JSON)를 다시 자연어 요약으로 변환하는 End-to-End 아키텍처
+            </p>
+            <div style="margin-top: 80px; padding: 20px; border-top: 1px solid #333; display: inline-block;">
+                <span style="color: #666; font-size: 1.1rem;">발표자: [   김희상   ]</span>
+            </div>
+        </div>
+    </section>
+
+    <section id="goal">
+        <div class="slide-number">01 / 10</div>
+        <div class="container">
+            <h2>문제 정의 및 목표</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h3 style="color: var(--warning);">🔴 Operational Pain Points</h3>
+                    <ul style="margin-top: 20px; list-style-type: none;">
+                        <li style="margin-bottom: 15px;">❌ <strong>컨텍스트 전환 비용:</strong> 채팅하다가 콘솔 로그인 → 검색 → 모니터링 탭 이동 등 반복 작업.</li>
+                        <li style="margin-bottom: 15px;">❌ <strong>데이터 분절:</strong> "서버 상태 어때?"라는 질문에 대해 상태(Status)와 부하(CPU)를 각각 다른 화면에서 봐야 함.</li>
+                        <li>❌ <strong>비전문가 접근성:</strong> OCI 콘솔에 익숙하지 않은 관리자는 단순 상태 확인조차 어려움.</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3 style="color: var(--success);">🟢 Demo Goals</h3>
+                    <ul style="margin-top: 20px; list-style-type: none;">
+                        <li style="margin-bottom: 15px;">✅ <strong>Zero Context Switching:</strong> 메신저/채팅 창에서 자연어로 즉시 조회.</li>
+                        <li style="margin-bottom: 15px;">✅ <strong>Intelligent Routing:</strong> Agent가 서버 이름을 스스로 파악하고 적절한 도구를 호출.</li>
+                        <li>✅ <strong>Human-Readable Summary:</strong> JSON Raw Data를 분석하여 "한국어 요약"으로 최종 답변 제공.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="architecture">
+        <div class="slide-number">02 / 10</div>
+        <div class="container">
+            <h2>End-to-End 데이터 플로우</h2>
+            <p style="margin-bottom: 30px;">
+                User의 자연어 요청이 Agent의 추론(Planning)을 거쳐 OCI Functions를 호출하고, <br>
+                최종적으로 인프라 리소스 데이터를 조회하여 반환하는 과정을 시각화했습니다.
+            </p>
+
+            <div class="flow-container">
+                <div class="flow-step active">
+                    <span class="icon">👤</span>
+                    <h4>User</h4>
+                    <p>"OCI_Cost_Report 상태?"</p>
+                </div>
+
+                <div class="connector c1">
+                    <div class="packet"></div>
+                </div>
+
+                <div class="flow-step">
+                    <span class="icon">🤖</span>
+                    <h4>GenAI Agent</h4>
+                    <p>Planning & Routing</p>
+                    <small style="color:var(--highlight)">Param Extraction</small>
+                </div>
+
+                <div class="connector c2">
+                    <div class="packet"></div>
+                </div>
+
+                <div class="flow-step">
+                    <span class="icon">⚡</span>
+                    <h4>OCI Function</h4>
+                    <p>Healthcheck Logic</p>
+                    <small style="color:#aaa;">us-chicago-1</small>
+                </div>
+
+                <div class="connector c3">
+                    <div class="packet"></div>
+                </div>
+
+                <div class="flow-step">
+                    <span class="icon">🏢</span>
+                    <h4>Target Resources</h4>
+                    <p>Compute & Metrics</p>
+                    <small style="color:#aaa;">ap-seoul-1</small>
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 30px;">
+                <div class="region-zone">
+                    <div class="region-tag">Hosting Region: us-chicago-1</div>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div style="flex: 1;">
+                            <strong>OCI GenAI Agent</strong>
+                            <p style="font-size:0.9rem;">RAG / LLM Inference</p>
+                        </div>
+                        <div style="font-size: 1.5rem;">→</div>
+                        <div style="flex: 1;">
+                            <strong>Functions (Tool)</strong>
+                            <p style="font-size:0.9rem;">Python SDK Logic</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="region-zone" style="border-color: var(--highlight);">
+                    <div class="region-tag" style="color: var(--highlight);">Target Region: ap-seoul-1</div>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div style="flex: 1;">
+                            <strong>Resource Search</strong>
+                            <p style="font-size:0.9rem;">이름으로 OCID 조회</p>
+                        </div>
+                        <div style="font-size: 1.5rem;">+</div>
+                        <div style="flex: 1;">
+                            <strong>Monitoring</strong>
+                            <p style="font-size:0.9rem;">CPU/Mem Metrics</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 15px; font-size: 0.85rem; color: #777;">
+                * Functions는 Chicago 리전에 있지만, 코드 내부에서 Seoul 리전의 리소스를 타겟팅하도록 설정됨 (Cross-Region Call)
+            </div>
+        </div>
+    </section>
+
+    <section id="sequence">
+        <div class="slide-number">03 / 10</div>
+        <div class="container">
+            <h2>Call Flow 시퀀스</h2>
+            <div class="card" style="padding: 40px;">
+                <div style="position: relative; border-left: 2px solid #444; margin-left: 20px; padding-left: 30px;">
+                    
+                    <div style="margin-bottom: 30px; position: relative;">
+                        <div style="position: absolute; left: -39px; top: 0; width: 16px; height: 16px; background: #fff; border-radius: 50%;"></div>
+                        <strong style="color: #fff; font-size: 1.1rem;">① User Prompt</strong>
+                        <p>사용자: "OCI_Cost_Report 상태 알려줘"</p>
+                    </div>
+
+                    <div style="margin-bottom: 30px; position: relative;">
+                        <div style="position: absolute; left: -39px; top: 0; width: 16px; height: 16px; background: var(--highlight); border-radius: 50%;"></div>
+                        <strong style="color: var(--highlight); font-size: 1.1rem;">② Agent Planning & Routing</strong>
+                        <p>LLM이 질문 분석 → Tool 선택 → <code>instance_name="OCI_Cost_Report"</code> 추출</p>
+                    </div>
+
+                    <div style="margin-bottom: 30px; position: relative;">
+                        <div style="position: absolute; left: -39px; top: 0; width: 16px; height: 16px; background: var(--accent-color); border-radius: 50%;"></div>
+                        <strong style="color: var(--accent-color); font-size: 1.1rem;">③ Tool Invocation (POST)</strong>
+                        <p>Agent → Function 호출 (Payload: <code>{"instance_name": "..."}</code>)</p>
+                    </div>
+
+                    <div style="margin-bottom: 30px; position: relative;">
+                        <div style="position: absolute; left: -39px; top: 0; width: 16px; height: 16px; background: #555; border-radius: 50%;"></div>
+                        <strong style="color: #aaa; font-size: 1.1rem;">④ Function Execution (Python)</strong>
+                        <p>Search Instance (Seoul) → Get Status (RUNNING) → Get Metrics (Avg/Max)</p>
+                    </div>
+
+                    <div style="margin-bottom: 30px; position: relative;">
+                        <div style="position: absolute; left: -39px; top: 0; width: 16px; height: 16px; background: var(--success); border-radius: 50%;"></div>
+                        <strong style="color: var(--success); font-size: 1.1rem;">⑤ Tool Response (JSON)</strong>
+                        <p>반환값: <code>{ "found": true, "lifecycle_state": "RUNNING", "cpu...": 50.0 }</code></p>
+                    </div>
+
+                    <div style="position: relative;">
+                        <div style="position: absolute; left: -39px; top: 0; width: 16px; height: 16px; background: #fff; border-radius: 50%;"></div>
+                        <strong style="color: #fff; font-size: 1.1rem;">⑥ Final Answer</strong>
+                        <p>Agent가 JSON을 해석하여 한국어로 답변 생성</p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="routing">
+        <div class="slide-number">04 / 10</div>
+        <div class="container">
+            <h2>Tool Routing 규칙 (Agent Instructions)</h2>
+            <div class="grid-2">
+                <div>
+                    <h3 style="color:#ccc; font-size:1.1rem; margin-bottom:10px;">Instruction 원문</h3>
+                    <div class="code-wrapper">
+                        <pre><code id="routing-code">Routing instructions:
+ 
+사용자가 특정 인스턴스 상태 점검을 요청하면, 인스턴스 이름을 명확히 추출해 instance_name 으로 Http Endpoint Tool 을 호출하라. 반드시 한글로 답하고, 질문한 서버명으로 답하라.</code></pre>
+                        <button class="copy-btn" onclick="copyToClipboard('routing-code')">Copy</button>
+                    </div>
+                </div>
+                <div class="card" style="display: flex; flex-direction: column; justify-content: center;">
+                    <h3>핵심 제어 포인트 3가지</h3>
+                    <ul style="margin-top: 20px; font-size: 1.1rem; line-height: 2;">
+                        <li>🎯 <strong>Parameter Extraction:</strong> 문장에서 불명확한 단어를 제외하고 정확한 서버명(Entity)을 추출하도록 지시.</li>
+                        <li>🔗 <strong>Tool Mapping:</strong> <code>instance_name</code>이라는 구체적인 필드명으로 매핑하도록 강제.</li>
+                        <li>🗣️ <strong>Response Formatting:</strong> "반드시 한글로", "질문한 서버명 포함"을 통해 LLM의 환각 방지 및 UX 향상.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="schema">
+        <div class="slide-number">05 / 10</div>
+        <div class="container">
+            <h2>HTTP Endpoint Tool 인터페이스 상세</h2>
+            <p style="margin-bottom: 20px;">Agent가 Tool을 어떻게 이해하고 호출하는지 정의하는 OpenAPI Spec입니다.</p>
+
+            <div class="grid-2">
+                <div>
+                    <h3 style="font-size: 1rem; color: #aaa;">OpenAPI Spec (JSON)</h3>
+                    <div class="code-wrapper">
+                        <pre style="max-height: 500px;"><code id="schema-code">{
+  "openapi": "3.0.0",
+  "paths": {
+    "/functions/.../actions/invoke": {
+      "post": {
+        "summary": "Invoke healthcheck-fn",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "instance_name": { 
+                    "type": "string", 
+                    "description": "Compute 인스턴스 display_name" 
+                  },
+                  "checks": { 
+                    "type": "array", 
+                    "items": { "type": "string" } 
+                  }
+                },
+                "required": ["instance_name"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { ... } }
+      }
+    }
+  }
+}</code></pre>
+                        <button class="copy-btn" onclick="copyToClipboard('schema-code')">Copy</button>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 style="font-size: 1rem; color: var(--highlight);">Request Parameters (Input)</h3>
+                    <div class="card" style="padding: 15px; margin-bottom: 20px; height: auto;">
+                        <table>
+                            <tr>
+                                <th width="30%">Field</th>
+                                <th width="20%">Type</th>
+                                <th>Description & Usage</th>
+                            </tr>
+                            <tr>
+                                <td style="color:var(--accent-color)">instance_name</td>
+                                <td>String</td>
+                                <td><strong>(필수)</strong> 타겟 서버의 Display Name.<br>Agent가 자연어에서 추출하여 주입.</td>
+                            </tr>
+                            <tr>
+                                <td>checks</td>
+                                <td>Array</td>
+                                <td>(선택) 점검 항목 리스트. <br>Ex: <code>["cpu", "memory"]</code>. 생략 시 기본값 수행.</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <h3 style="font-size: 1rem; color: var(--success);">Response Fields (Output)</h3>
+                    <div class="card" style="padding: 15px; height: auto;">
+                        <table>
+                            <tr>
+                                <th width="30%">Field</th>
+                                <th>Description</th>
+                            </tr>
+                            <tr>
+                                <td>found</td>
+                                <td>서버 존재 여부 (Boolean). False면 Agent가 "서버를 찾을 수 없다"고 답변.</td>
+                            </tr>
+                            <tr>
+                                <td>lifecycle_state</td>
+                                <td>OCI Compute 상태 (RUNNING, STOPPED 등).</td>
+                            </tr>
+                            <tr>
+                                <td>checks.*</td>
+                                <td>CPU/Memory 최대 사용률 값. Agent가 이를 읽고 "50%" 등으로 요약.</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="trace">
+        <div class="slide-number">06 / 10</div>
+        <div class="container">
+            <h2>실제 데모 Trace Log 분석</h2>
+            <div class="grid-3" style="margin-bottom: 30px;">
+                <div class="card" style="text-align: center; padding: 20px;">
+                    <div style="font-size: 0.9rem; color: #888;">Model</div>
+                    <div style="font-size: 1.1rem; font-weight: bold;">Llama 3.3 70B</div>
+                </div>
+                <div class="card" style="text-align: center; padding: 20px;">
+                    <div style="font-size: 0.9rem; color: #888;">Total Latency</div>
+                    <div style="font-size: 1.1rem; font-weight: bold; color: var(--warning);">~55s (Cold Start)</div>
+                </div>
+                <div class="card" style="text-align: center; padding: 20px;">
+                    <div style="font-size: 0.9rem; color: #888;">Tokens (In/Out)</div>
+                    <div style="font-size: 1.1rem; font-weight: bold;">1985 / 232</div>
+                </div>
+            </div>
+
+            <div style="position: relative; border-left: 2px solid #333; margin-left: 20px; padding-left: 30px;">
+                <div style="margin-bottom: 30px;">
+                    <span style="font-family: monospace; color: #666;">15:18:15</span> <span class="badge bg-high">Request</span>
+                    <div class="code-wrapper">
+                        <pre style="padding: 10px; font-size: 0.85rem;">{
+  "instance_name": "OCI_Cost_Report",
+  "checks": ["cpu", "memory"]
+}</pre>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 30px;">
+                    <span style="font-family: monospace; color: #666;">15:19:04</span> <span class="badge bg-run">Response (200 OK)</span>
+                    <div class="code-wrapper">
+                        <pre style="padding: 10px; font-size: 0.85rem;">{
+  "instance_name": "OCI_Cost_Report",
+  "found": true,
+  "lifecycle_state": "RUNNING",
+  "checks": {
+    "cpu_max_60m": 50.025,
+    "memory_max_60m": 30.000
+  }
+}</pre>
+                    </div>
+                </div>
+
+                <div>
+                    <span style="font-family: monospace; color: #666;">15:19:05</span> <span class="badge" style="background: white; color: black;">Final Output</span>
+                    <div class="card" style="margin-top: 10px; border-left: 4px solid var(--highlight);">
+                        "<strong>OCI_Cost_Report</strong> 서버의 상태는 <strong>RUNNING</strong>입니다. <br>CPU 사용률은 <strong>50.03%</strong>, 메모리 사용률은 <strong>30.00%</strong>입니다."
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="function">
+        <div class="slide-number">07 / 10</div>
+        <div class="container">
+            <h2>Function 내부 동작 (Python Logic)</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h3>🔍 리소스 탐색 (Discovery)</h3>
+                    <ul style="margin-top: 15px;">
+                        <li><strong>Auth:</strong> Resource Principal 인증 (Key 파일 불필요).</li>
+                        <li><strong>Scope:</strong> 대상 리전 <code>ap-seoul-1</code> 고정.</li>
+                        <li><strong>Method:</strong>
+                            <ol style="margin-left: 20px; margin-top: 5px; color: #bbb;">
+                                <li><code>StructuredSearch</code> 쿼리로 이름 검색 (Fast).</li>
+                                <li>실패 시 <code>list_instances</code>로 전체 스캔 (Fallback).</li>
+                            </ol>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>📊 메트릭 조회 (Monitoring)</h3>
+                    <ul style="margin-top: 15px;">
+                        <li><strong>Namespace:</strong> <code>oci_computeagent</code></li>
+                        <li><strong>Metrics:</strong> <code>CpuUtilization</code>, <code>MemoryUtilization</code></li>
+                        <li><strong>Aggregation:</strong> 최근 60분 간의 <code>max()</code> 값 추출.</li>
+                        <li><strong>Handling:</strong> 데이터가 없을 경우 <code>no_data</code> 문자열 반환 (에러 회피).</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="ops">
+        <div class="slide-number">08 / 10</div>
+        <div class="container">
+            <h2>운영 및 보안 고려사항</h2>
+            <div class="grid-3">
+                <div class="card" style="border-top: 4px solid var(--highlight);">
+                    <h4>🛠 Operations</h4>
+                    <p style="font-size: 0.9rem;">
+                        - <strong>Timeout Sync:</strong> Agent Timeout과 Function Timeout 동기화 (Max 60s 권장).<br>
+                        - <strong>Cold Start:</strong> 데모에서 ~50초 지연 발생. 운영 환경에선 Provisioned Concurrency 필요.<br>
+                        - <strong>Logging:</strong> Function의 Input/Output 로깅 설정 필수.
+                    </p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent-color);">
+                    <h4>🛡 Security</h4>
+                    <p style="font-size: 0.9rem;">
+                        - <strong>Least Privilege:</strong> Function이 특정 Compartment의 Metrics만 읽을 수 있도록 IAM Policy 제한.<br>
+                        - <strong>Private Access:</strong> 필요한 경우 Function을 Private Subnet에 배치.<br>
+                        - <strong>Injection 방지:</strong> 입력된 서버명에 대한 유효성 검사.
+                    </p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--success);">
+                    <h4>🚀 Scalability</h4>
+                    <p style="font-size: 0.9rem;">
+                        - <strong>확장성:</strong> <code>checks</code> 배열을 늘려 Disk, Network 등 항목 추가 용이.<br>
+                        - <strong>Multi-Region:</strong> 리전 파라미터를 입력받도록 변경하여 글로벌 조회 가능.<br>
+                        - <strong>Alarm 연동:</strong> 단순 조회를 넘어 "현재 울리는 알람" 조회로 확장.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="takeaways">
+        <div class="slide-number">09 / 10</div>
+        <div class="container">
+            <h2>Key Takeaways</h2>
+            <div class="card">
+                <ul style="font-size: 1.4rem; line-height: 2.2; list-style: none; padding-left: 10px;">
+                    <li>🚀 <strong>Agent as Orchestrator:</strong> 단순 챗봇을 넘어, API를 호출하고 결과를 해석하는 "운영자" 역할 수행.</li>
+                    <li>🧩 <strong>Function as a Glue:</strong> 복잡한 검색/조회/가공 로직을 하나의 "함수"로 캡슐화하여 Agent가 쉽게 사용.</li>
+                    <li>📝 <strong>Prompt Engineering:</strong> Routing Instruction을 통해 파라미터 추출 정확도와 응답 포맷을 완벽 제어.</li>
+                    <li>🌐 <strong>Cross-Region Ops:</strong> Agent와 타겟 리소스의 리전이 달라도 Function을 통해 유연하게 연결.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="qa" style="text-align: center;">
+        <div class="slide-number">10 / 10</div>
+        <div class="container">
+            <h1 style="font-size: 5rem; margin-bottom: 20px;">Q & A</h1>
+            <p style="font-size: 1.5rem; color: #888;">
+                OCI GenAI Agent와 Functions를 활용한<br>지능형 운영 자동화에 대해 질문해 주세요.
+            </p>
+        </div>
+    </section>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const codeElement = document.getElementById(elementId);
+            const text = codeElement.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("코드가 클립보드에 복사되었습니다.");
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+    </script>
+</body>
+</html>
